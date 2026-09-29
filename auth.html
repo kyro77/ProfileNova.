@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NovaProfile — Account</title><script src="config.js"></script>
+<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 20% 10%,#24194a,#08080b 48%);color:#fff;font-family:Inter,system-ui,Arial;display:grid;place-items:center;padding:20px}.box{width:min(470px,100%);background:#111118e8;border:1px solid #ffffff14;border-radius:22px;padding:26px;box-shadow:0 30px 100px #0008;backdrop-filter:blur(18px)}.logo{font-weight:900;font-size:22px;margin-bottom:20px}.logo span{color:#8d70ff}.tabs{display:flex;gap:8px;margin-bottom:18px}.tab{flex:1;padding:11px;border:1px solid #ffffff12;background:#ffffff08;color:#fff;border-radius:10px;cursor:pointer}.tab.active{background:#765cf5;border-color:#765cf5}.field{margin:12px 0}.field label{display:block;font-size:12px;color:#aaa;margin-bottom:6px}.field input{width:100%;padding:12px;border-radius:10px;border:1px solid #ffffff12;background:#09090d;color:#fff;outline:none}.field input:focus{border-color:#765cf5}.btn{width:100%;padding:12px;border:0;border-radius:10px;background:#765cf5;color:#fff;font-weight:700;cursor:pointer;margin-top:8px}.ghost{background:#ffffff08;border:1px solid #ffffff12}.msg{min-height:22px;color:#aaa;font-size:13px;line-height:1.45;margin-top:12px}.back{display:block;text-align:center;margin-top:16px;color:#888;text-decoration:none;font-size:13px}.hint{padding:11px 12px;border:1px solid #ffffff0d;background:#ffffff06;border-radius:10px;color:#999;font-size:12px;line-height:1.5;margin-bottom:14px}</style></head>
+<body><main class="box"><div class="logo">Nova<span>Profile</span></div><div class="hint" id="hint">Erstelle deinen Account und wir schicken dich danach direkt in den Profil-Editor.</div><div class="tabs"><button class="tab active" id="registerTab" type="button">Account erstellen</button><button class="tab" id="loginTab" type="button">Einloggen</button></div><form id="form"><div class="field"><label>E-Mail</label><input id="email" type="email" autocomplete="email" required placeholder="du@example.com"></div><div class="field"><label>Passwort</label><input id="password" type="password" autocomplete="new-password" minlength="6" required placeholder="mindestens 6 Zeichen"></div><button class="btn" id="submit" type="submit">Account erstellen</button></form><div class="msg" id="msg">Noch kein Account? Erstelle ihn kostenlos.</div><a class="back" href="index.html">← Zurück zu NovaProfile</a></main>
+<script type="module">
+const $=id=>document.getElementById(id);let mode='register',sb=null;
+const params=new URLSearchParams(location.search);const returnTo=params.get('return')||'editor.html';
+function msg(t){$('msg').textContent=t}
+function setMode(m){mode=m;$('registerTab').classList.toggle('active',m==='register');$('loginTab').classList.toggle('active',m==='login');$('submit').textContent=m==='register'?'Account erstellen':'Einloggen';$('password').autocomplete=m==='register'?'new-password':'current-password';msg(m==='register'?'Noch kein Account? Erstelle ihn kostenlos.':'Schon registriert? Logge dich ein.')}
+$('registerTab').onclick=()=>setMode('register');$('loginTab').onclick=()=>setMode('login');
+async function setup(){
+ if(!window.NOVA_SUPABASE_URL||!window.NOVA_SUPABASE_ANON_KEY){msg('Supabase ist noch nicht in config.js eingetragen.');$('submit').disabled=true;return}
+ try{
+  const m=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');sb=m.createClient(window.NOVA_SUPABASE_URL,window.NOVA_SUPABASE_ANON_KEY);
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){location.replace(returnTo);return}
+  if(location.hash.includes('access_token')||location.hash.includes('code=')||location.hash.includes('type=signup')){
+   $('hint').textContent='E-Mail bestätigt. Einen Moment…';
+   setTimeout(async()=>{const {data:{session:s}}=await sb.auth.getSession();if(s)location.replace(returnTo);else msg('E-Mail bestätigt. Bitte logge dich jetzt ein.')},700);
+  }
+ }catch(e){console.error(e);msg('Supabase konnte nicht geladen werden. Bitte Seite neu laden.')}
+}
+$('form').onsubmit=async e=>{e.preventDefault();if(!sb)return;const email=$('email').value.trim(),password=$('password').value;if(!email||password.length<6){msg('Bitte E-Mail und mindestens 6 Zeichen Passwort eingeben.');return}$('submit').disabled=true;msg('Einen Moment…');try{
+ if(mode==='register'){
+  const redirectUrl=new URL('auth.html?return='+encodeURIComponent(returnTo),window.location.href).href;
+  const {data,error}=await sb.auth.signUp({email,password,options:{emailRedirectTo:redirectUrl}});if(error)throw error;
+  if(data.session){location.replace(returnTo)}else{msg('Account erstellt. Bestätige zuerst deine E-Mail. Danach kannst du dich hier einloggen.');setMode('login')}
+ }else{
+  const {data,error}=await sb.auth.signInWithPassword({email,password});if(error)throw error;if(data.session)location.replace(returnTo)
+ }
+ }catch(err){msg(err?.message||'Anmeldung fehlgeschlagen.')}finally{$('submit').disabled=false}}
+setup();
+</script></body></html>
